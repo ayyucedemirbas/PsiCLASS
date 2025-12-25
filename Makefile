@@ -1,76 +1,60 @@
-CXX = g++
-CXXFLAGS= -Wall -O3 #-g #-std=c++11 #-Wall #-g
-#CXXFLAGS= -Wall -g #-std=c++11 #-Wall #-g
-LINKPATH= -I./samtools-0.1.19 -L./samtools-0.1.19
-LINKFLAGS = -lbam -lz -lm -lpthread 
-DEBUG=
-OBJECTS = stats.o subexon-graph.o 
+# Optimized Makefile for macOS (Apple Silicon M1/M2/M3) compatibility.
+# Solves 'algorithm' not found errors by enforcing C++11 and libc++.
 
-#asan=1
-ifneq ($(asan),)
-	CXXFLAGS+=-fsanitize=address -g
-	LINKFLAGS+=-fsanitize=address -ldl -g
-endif
+CXX = clang++
+
+# Compilation flags (Include paths go here)
+# -std=c++11 and -stdlib=libc++ are crucial for macOS
+CXXFLAGS = -Wall -O3 -std=c++11 -stdlib=libc++ -I./samtools-0.1.19
+
+# Linking flags (Library paths go here)
+LDFLAGS = -L./samtools-0.1.19 -lbam -lz -lm -lpthread -stdlib=libc++
+
+# Source files and objects
+OBJECTS = stats.o subexon-graph.o 
 
 all: subexon-info combine-subexons classes vote-transcripts junc grader trust-splice add-genename addXS
 
-subexon-info: subexon-info.o $(OBJECTS)
-	if [ ! -f ./samtools-0.1.19/libbam.a ] ; \
-	        then \
-		                cd samtools-0.1.19 ; make ;\
-	fi ;
-	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) $(OBJECTS) subexon-info.o $(LINKFLAGS)
+# Check and compile internal samtools dependency if missing
+samtools_lib:
+	if [ ! -f ./samtools-0.1.19/libbam.a ] ; then \
+		cd samtools-0.1.19 && make CC=clang CXX=clang++ ; \
+	fi
+
+# --- TARGETS ---
+
+subexon-info: samtools_lib subexon-info.o $(OBJECTS)
+	$(CXX) $(CXXFLAGS) -o $@ subexon-info.o $(OBJECTS) $(LDFLAGS)
 
 combine-subexons: combine-subexons.o $(OBJECTS)
-	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) $(OBJECTS) combine-subexons.o $(LINKFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ combine-subexons.o $(OBJECTS) $(LDFLAGS)
 
 classes: classes.o constraints.o transcript-decider.o $(OBJECTS)
-	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) $(OBJECTS) constraints.o transcript-decider.o classes.o $(LINKFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ constraints.o transcript-decider.o classes.o $(OBJECTS) $(LDFLAGS)
 
 trust-splice: trust-splice.o
-	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) $(OBJECTS) trust-splice.o $(LINKFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ trust-splice.o $(OBJECTS) $(LDFLAGS)
 
 vote-transcripts: vote-transcripts.o 
-	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) $(OBJECTS) vote-transcripts.o $(LINKFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ vote-transcripts.o $(OBJECTS) $(LDFLAGS)
 
 junc: junc.o
-	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) junc.o $(LINKFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ junc.o $(LDFLAGS)
 
 grader: grader.o
-	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) grader.o $(LINKFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ grader.o $(LDFLAGS)
 
 addXS: addXS.o
-	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) addXS.o $(LINKFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ addXS.o $(LDFLAGS)
 
 add-genename: add-genename.o
-	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) add-genename.o $(LINKFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ add-genename.o $(LDFLAGS)
 
-subexon-info.o: SubexonInfo.cpp alignments.hpp blocks.hpp support.hpp defs.h stats.hpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-combine-subexons.o: CombineSubexons.cpp alignments.hpp blocks.hpp support.hpp defs.h stats.hpp SubexonGraph.hpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-stats.o: stats.cpp stats.hpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-subexon-graph.o: SubexonGraph.cpp SubexonGraph.hpp 
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-constraints.o: Constraints.cpp Constraints.hpp SubexonGraph.hpp alignments.hpp BitTable.hpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-transcript-decider.o: TranscriptDecider.cpp TranscriptDecider.hpp Constraints.hpp BitTable.hpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-classes.o: classes.cpp SubexonGraph.hpp SubexonCorrelation.hpp BitTable.hpp Constraints.hpp alignments.hpp TranscriptDecider.hpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-trust-splice.o: GetTrustedSplice.cpp alignments.hpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-vote-transcripts.o: Vote.cpp TranscriptDecider.hpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-junc.o: FindJunction.cpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-grader.o: grader.cpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-addXS.o: AddXS.cpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
-add-genename.o: AddGeneName.cpp
-	$(CXX) -c -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
+# --- COMPILATION RULES (.cpp -> .o) ---
+# Note: Only CXXFLAGS should be used here, LDFLAGS are for the linking stage.
+
+.cpp.o:
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o *.gch subexon-info combine-subexons trust-splice vote-transcripts junc grader add-genename addXS
+	rm -f *.o subexon-info combine-subexons trust-splice vote-transcripts junc grader add-genename addXS
